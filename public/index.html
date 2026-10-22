@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Contador QA MVP</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 80px auto; padding: 24px; background: #f4f7fb; color: #183153; }
+      main { padding: 32px; background: white; border-radius: 16px; }
+      output { display: block; font-size: 48px; margin: 24px 0; }
+      button { padding: 12px 24px; font: inherit; border-radius: 8px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Contador QA MVP</h1>
+      <p>Cada clic incrementa el contador en una unidad.</p>
+      <output aria-label="Valor del contador" aria-live="polite">0</output>
+      <button type="button">Sumar</button>
+    </main>
+    <script>
+      let count = 0;
+      const value = document.querySelector('output');
+      document.querySelector('button').addEventListener('click', () => {
+        count += 1;
+        value.textContent = String(count);
+      });
+    </script>
+  </body>
+</html>
