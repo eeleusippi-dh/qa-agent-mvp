@@ -1,5 +1,7 @@
 # QA Agent MVP — paso 2
 
+Piloto de agente QA con GitHub Actions, Codex y Playwright.
+
 Base local: contador y tres pruebas con Playwright + TypeScript.
 
 ## Preparación
