@@ -1,0 +1,100 @@
+name: QA Agent MVP
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generar casos y tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      bundle: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Generar con Codex
+        id: codex
+        uses: openai/codex-action@v1
+        env:
+          QA_COMMIT: ${{ github.sha }}
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+          prompt-file: .github/qa/baseline-prompt.md
+          output-schema-file: .github/qa/bundle.schema.json
+          codex-args: '["--ephemeral"]'
+
+  execute:
+    name: Validar y ejecutar Playwright
+    needs: generate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar y recuperar archivos generados
+        env:
+          QA_BUNDLE: ${{ needs.generate.outputs.bundle }}
+          QA_COMMIT: ${{ github.sha }}
+        run: node .github/qa/validate-agent.mjs restore
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Ejecutar tests generados
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: qa-output/generated-results.json
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/generated --reporter=list,html,json
+
+      - name: Comprobar resultados y criterios ejecutados
+        run: node .github/qa/validate-agent.mjs results
+
+      - name: Ejecutar tests de referencia existentes
+        run: npx playwright test tests/counter.spec.ts --reporter=list
+
+      - name: Conservar casos, tests y evidencias
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-agent-evidence
+          path: |
+            qa-output/
+            tests/generated/
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  gate:
+    name: qa-agent-gate
+    needs: [generate, execute]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Comprobar ambas etapas
+        env:
+          GENERATION_RESULT: ${{ needs.generate.result }}
+          EXECUTION_RESULT: ${{ needs.execute.result }}
+        run: |
+          test "$GENERATION_RESULT" = "success"
+          test "$EXECUTION_RESULT" = "success"
+          echo "Generacion y ejecucion completadas correctamente."
